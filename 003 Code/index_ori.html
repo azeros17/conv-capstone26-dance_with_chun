@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>바이오차 품질 예측 대시보드</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #1a1d24; --card2: #22262f;
+    --line: #2e333d; --text: #e6e8eb; --sub: #9aa0a8;
+    --info: #5b9bff; --infobg: #16243d;
+    --warn: #f0b34a; --warnbg: #3a2e16;
+    --ok: #4caf78; --okbg: #16301f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    padding: 16px; line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .desc { font-size: 13px; color: var(--sub); margin-bottom: 16px; }
+  .badge { display:inline-block; font-size:11px; background:var(--infobg); color:var(--info); padding:2px 10px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .grid { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel h2 { font-size: 14px; color: var(--sub); font-weight: 500; margin-bottom: 14px; }
+
+  .ctrl { margin-bottom: 16px; }
+  .ctrl label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .ctrl label b { color: var(--info); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--info); height: 28px; }
+  .sum { font-size: 12px; color: var(--sub); margin-top: 4px; }
+  .sum.bad { color: var(--warn); }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+  @media (max-width: 600px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .metric { background: var(--card2); border-radius: 8px; padding: 10px; }
+  .metric .k { font-size: 11px; color: var(--sub); }
+  .metric .v { font-size: 19px; font-weight: 600; margin-top: 2px; }
+  .metric .u { font-size: 11px; color: var(--sub); font-weight: 400; }
+  .metric.extra { background: var(--warnbg); }
+  .metric.extra .k, .metric.extra .v { color: var(--warn); }
+
+  .gastable { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .gastable td { padding: 4px 0; }
+  .gastable .gk { color: var(--sub); }
+  .gastable .gv { text-align: right; font-weight: 600; }
+
+  .gradecard { border: 2px solid var(--info); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center; }
+  .gradecard.none { border-color: var(--line); }
+  .gradecard .gname { font-size: 19px; font-weight: 600; color: var(--info); }
+  .gradecard.none .gname { color: var(--text); }
+  .gradecard .gsub { font-size: 12px; color: var(--sub); }
+  .gradecard .gprice { font-size: 19px; font-weight: 600; color: var(--info); text-align: right; }
+  .gradecard.none .gprice { color: var(--sub); }
+
+  .carbon { background: var(--card2); border-radius: 8px; padding: 10px 14px; }
+  .carbon .row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .carbon .row span:first-child { color: var(--sub); }
+
+  .srf { border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; background: var(--card2); }
+  .srf .shdr { display: flex; justify-content: space-between; align-items: center; }
+  .srf .stitle { font-size: 12px; color: var(--sub); }
+  .srf .sverdict { font-size: 16px; font-weight: 600; }
+
+  .legend { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--warn); margin-left: auto; }
+  .legend .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--warn); }
+  .hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+  .loading { opacity: 0.5; transition: opacity 0.15s; }
+  .stage { font-size: 12px; color: var(--sub); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔥 바이오차 품질 예측 <span class="badge">원 데이터 모델</span></h1>
+  <div class="desc"><a href="/gen" style="color:var(--info)">생성 데이터 모델 보기 →</a></div>
+
+  <div class="grid">
+    <!-- 입력 패널 -->
+    <div class="panel">
+      <h2>입력</h2>
+      <div class="ctrl">
+        <label>우분 <b><span id="v_우분">40</span>%</b></label>
+        <input type="range" id="우분" min="0" max="100" value="40" step="5">
+      </div>
+      <div class="ctrl">
+        <label>돈분 <b><span id="v_돈분">0</span>%</b></label>
+        <input type="range" id="돈분" min="0" max="100" value="0" step="5">
+      </div>
+      <div class="ctrl">
+        <label>커피박 <b><span id="v_커피박">30</span>%</b></label>
+        <input type="range" id="커피박" min="0" max="100" value="30" step="5">
+      </div>
+      <div class="ctrl">
+        <label>톱밥 <b><span id="v_톱밥">30</span>%</b></label>
+        <input type="range" id="톱밥" min="0" max="100" value="30" step="5">
+      </div>
+      <div class="ctrl">
+        <label>슬러지 <b><span id="v_슬러지">0</span>%</b></label>
+        <input type="range" id="슬러지" min="0" max="100" value="0" step="5">
+      </div>
+      <div class="sum" id="sumtxt">조성 합계: 100%</div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="ctrl">
+        <label>탄화온도 <b><span id="v_온도">500</span>°C</b></label>
+        <input type="range" id="온도" min="200" max="800" value="500" step="25">
+      </div>
+      <div class="ctrl">
+        <label>월 <b><span id="v_월">6</span>월</b></label>
+        <input type="range" id="월" min="1" max="12" value="6" step="1">
+      </div>
+      <div class="stage" id="stage">공정단계: —</div>
+    </div>
+
+    <!-- 결과 패널 -->
+    <div class="panel" id="result">
+      <div class="hdr">
+        <h2 style="margin:0">물성 예측</h2>
+        <span class="legend"><span class="dot"></span>외삽 추정 (학습범위 밖)</span>
+      </div>
+      <div class="metrics" id="metrics"><!-- JS --></div>
+
+      <h2>배출가스 (g/kg)</h2>
+      <div style="background:var(--card2);border-radius:8px;padding:10px 14px;margin-bottom:16px">
+        <table class="gastable" id="gastable"><!-- JS --></table>
+      </div>
+
+      <div class="gradecard" id="gradecard">
+        <div>
+          <div class="gsub">품질등급</div>
+          <div class="gname" id="gname">—</div>
+          <div class="gsub" id="gsub">—</div>
+        </div>
+        <div>
+          <div class="gprice" id="gprice">—</div>
+          <div class="gsub">원/톤</div>
+        </div>
+      </div>
+
+      <div class="srf" id="srfcard">
+        <div class="shdr">
+          <span class="stitle">고형연료 (바이오SRF·비성형)</span>
+          <span class="sverdict" id="srf_verdict">—</span>
+        </div>
+      </div>
+
+      <div class="carbon">
+        <div class="row"><span>탄소격리</span><span id="c_seq">—</span></div>
+        <div class="row"><span>CO₂e 격리</span><span id="c_co2e">—</span></div>
+        <div class="row"><span>CO₂e 합계</span><span id="c_sum">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ids = ['우분','돈분','커피박','톱밥','슬러지','온도','월'];
+const extraKeys = ['발열량(cal/g)','BET(m²/g)','탄화점(°C)','함수율(%)'];
+
+// 슬라이더 값 표시 + 합계 체크
+function syncLabels() {
+  ['우분','돈분','커피박','톱밥','슬러지'].forEach(k => {
+    document.getElementById('v_'+k).textContent = document.getElementById(k).value;
+  });
+  document.getElementById('v_온도').textContent = document.getElementById('온도').value;
+  document.getElementById('v_월').textContent = document.getElementById('월').value;
+  const sum = ['우분','돈분','커피박','톱밥','슬러지']
+    .reduce((a,k)=>a+Number(document.getElementById(k).value),0);
+  const el = document.getElementById('sumtxt');
+  el.textContent = `조성 합계: ${sum}%`;
+  el.className = (sum===100) ? 'sum' : 'sum bad';
+  return sum;
+}
+
+// 디바운싱: 슬라이더 멈추고 250ms 후 호출
+let timer = null;
+function onChange() {
+  syncLabels();
+  clearTimeout(timer);
+  timer = setTimeout(fetchPredict, 250);
+}
+
+async function fetchPredict() {
+  const sum = ['우분','돈분','커피박','톱밥','슬러지']
+    .reduce((a,k)=>a+Number(document.getElementById(k).value),0);
+  if (sum !== 100) {
+    document.getElementById('stage').textContent = '조성 합계를 100%로 맞춰주세요';
+    return;
+  }
+  const body = {
+    우분: +v('우분'), 돈분: +v('돈분'), 커피박: +v('커피박'),
+    톱밥: +v('톱밥'), 슬러지: +v('슬러지'),
+    탄화온도: +v('온도'), 월: +v('월'),
+  };
+  document.getElementById('result').classList.add('loading');
+  try {
+    const res = await fetch('/predict', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    render(data);
+  } catch(e) {
+    document.getElementById('stage').textContent = '서버 연결 실패: ' + e.message;
+  }
+  document.getElementById('result').classList.remove('loading');
+}
+
+const v = id => document.getElementById(id).value;
+
+function render(d) {
+  if (d.error) {
+    document.getElementById('stage').textContent = '입력 오류: ' + d.error.join(', ');
+    return;
+  }
+  document.getElementById('stage').textContent = '공정단계: ' + d['입력']['공정단계(자동)'];
+
+  // 물성
+  const props = d['물성 예측 (10개)'];
+  const order = ['수율(%)','고정탄소(%)','H/C비','회분(%)','발열량(cal/g)','BET(m²/g)','탄화점(°C)','함수율(%)'];
+  const units = {'수율(%)':'%','고정탄소(%)':'%','H/C비':'','회분(%)':'%','발열량(cal/g)':'cal/g','BET(m²/g)':'m²/g','탄화점(°C)':'°C','함수율(%)':'%'};
+  const names = {'수율(%)':'수율','고정탄소(%)':'고정탄소','H/C비':'H/C비','회분(%)':'회분','발열량(cal/g)':'발열량','BET(m²/g)':'BET','탄화점(°C)':'탄화점','함수율(%)':'함수율'};
+  let mh = '';
+  order.forEach(k => {
+    const isExtra = extraKeys.includes(k);
+    mh += `<div class="metric ${isExtra?'extra':''}">
+      <div class="k">${names[k]}</div>
+      <div class="v">${props[k]}<span class="u">${units[k]}</span></div>
+    </div>`;
+  });
+  document.getElementById('metrics').innerHTML = mh;
+
+  // 가스
+  const gas = d['가스 배출 (g/kg)'];
+  const gk = Object.keys(gas);
+  const gname2 = {'CO2g/kg':'CO₂','COg/kg':'CO','CH4g/kg':'CH₄','N2Og/kg':'N₂O','NH3g/kg':'NH₃','H2Sg/kg':'H₂S','NOxg/kg':'NOₓ','SO2g/kg':'SO₂'};
+  let gh = '';
+  for (let i=0;i<gk.length;i+=3) {
+    gh += '<tr>';
+    for (let j=i;j<i+3 && j<gk.length;j++) {
+      gh += `<td class="gk">${gname2[gk[j]]||gk[j]}</td><td class="gv">${gas[gk[j]]}</td>`;
+    }
+    gh += '</tr>';
+  }
+  document.getElementById('gastable').innerHTML = gh;
+
+  // 등급
+  const q = d['품질등급 (9시트 기준)'];
+  const card = document.getElementById('gradecard');
+  const isNone = q['최적등급'] === '등급외';
+  card.className = 'gradecard' + (isNone ? ' none' : '');
+  document.getElementById('gname').textContent = q['최적등급'];
+  document.getElementById('gsub').textContent = `IBI: ${q['IBI 등급']} · EBC: ${q['EBC 등급']}`;
+  document.getElementById('gprice').textContent = Number(q['톤당가격(원)']).toLocaleString();
+
+  // 고형연료 (바이오SRF)
+  const s = d['고형연료 (바이오SRF·비성형)'];
+  document.getElementById('srf_verdict').textContent = s['판정'];
+
+  // 탄소
+  const c = d['탄소·배출 (룰베이스)'];
+  document.getElementById('c_seq').textContent = c['탄소격리(tC/tBC)'] + ' tC/tBC';
+  document.getElementById('c_co2e').textContent = c['CO2e 격리(t/tBC)'] + ' t/tBC';
+  document.getElementById('c_sum').textContent = c['CO2e 합계 (입력월, g/kg)'] + ' g/kg';
+}
+
+ids.forEach(id => document.getElementById(id).addEventListener('input', onChange));
+syncLabels();
+fetchPredict();  // 첫 로드 시 1회
+</script>
+</body>
+</html>
